@@ -1,0 +1,9 @@
+@import "./color.css";
+
+:root { 
+    --light-box-shadow:-1px 3px 10px 0 rgb(0 0 0 / 6%);
+    --box-shadow-control: -0.8px 1px 0 0.5px #b8b7b7;
+    
+    --side-expand-transition-time: 0.3s;
+    --side-expand-transition: all var(--side-expand-transition-time) ease;
+}
