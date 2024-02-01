@@ -4,7 +4,12 @@
   <div class="cont">
     <div class="top">top</div>
     <div class="body">
-      <div class="side">side</div>
+      <!-- <div class="c-btn">
+        <button @click=""></button>
+      </div>
+      <Transition name="slide">
+        <div class="side">side</div>
+      </Transition> -->
       <div class="content">content</div>
     </div>
 
@@ -34,7 +39,7 @@
 
     .content {
       width: 100%;
-      background-color: blanchedalmond;
+      background-color: blueviolet;
     }
   }
 
