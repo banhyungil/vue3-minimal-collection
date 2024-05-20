@@ -7,7 +7,10 @@ import { RouterLink, RouterView } from 'vue-router'
     <header>
       <nav class="c-link-primary">
         <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/css">About</RouterLink>
+        <RouterLink to="/errorHandler">ErrorHandler</RouterLink>
+        <RouterLink to="/css">Css</RouterLink>
+        <RouterLink to="/vuelify">Vuelify</RouterLink>
+        <RouterLink to="/openLayer">openLayer</RouterLink>
       </nav>
     </header>
 
@@ -19,11 +22,6 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <style lang="scss" scoped>
 .main {
-  padding: 30px;
   height: calc(100vh - 40px);
-
-  & > * {
-    height: 100%;
-  }
 }
 </style>
