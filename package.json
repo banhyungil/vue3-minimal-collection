@@ -26,6 +26,8 @@
     "d3": "^7.8.5",
     "dayjs": "^1.11.10",
     "floating-vue": "^5.2.2",
+    "geolib": "^3.3.4",
+    "keyboard-event-key-type": "^1.5.0",
     "lodash": "^4.17.21",
     "ol": "^9.1.0",
     "ol-contextmenu": "^5.4.0",
