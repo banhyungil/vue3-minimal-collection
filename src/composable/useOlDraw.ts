@@ -4,19 +4,21 @@ import { getAreaOfPolygon } from 'geolib'
 import { Collection, Feature, Overlay, getUid, type Map } from 'ol'
 import CopyPaste from 'ol-ext/interaction/CopyPaste'
 import Transform from 'ol-ext/interaction/Transform'
+import type { FeatureLike } from 'ol/Feature'
 import type { Coordinate } from 'ol/coordinate'
 import { click } from 'ol/events/condition'
 import { getCenter } from 'ol/extent'
-import { Circle, Geometry, LineString, Polygon } from 'ol/geom'
+import { Circle, Geometry, LineString, MultiPoint, Polygon } from 'ol/geom'
 import type { Type } from 'ol/geom/Geometry'
 import { Draw, Modify, Select, Snap } from 'ol/interaction'
 import { createBox, type GeometryFunction } from 'ol/interaction/Draw'
 import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
 import { Fill, RegularShape, Stroke, Style } from 'ol/style'
+import CircleStyle from 'ol/style/Circle'
 import type { StyleLike } from 'ol/style/Style'
+import _ from 'lodash'
 
-export type DrawType = Type | 'Box'
 /**
  * 도형 그리기 composable
  * @param map
@@ -29,30 +31,90 @@ export default function useOlDraw(map: Map, options?: any) {
   // 수정 | 변환 | 변환중 | 그리기
   const interactionMode = ref<'modify' | 'transform' | 'transforming' | 'draw'>('modify')
 
-  const styleOptions = {
-    stroke: {
-      normal: { color: 'purple', width: 4 },
-      sel: { color: 'grey', width: 4 },
+  const STYLE_OPTIONS: StyleOptions = {
+    LineString: {
+      stroke: { color: '#FF005E', width: 4 },
+    },
+    Box: {
+      stroke: { color: 'rgba(146, 192, 164, 1)', width: 4 },
+      fill: { color: 'rgba(146, 192, 164, 0.3)' },
+    },
+    Circle: {
+      stroke: { color: 'rgba(160, 103, 252, 1)', width: 4 },
+      fill: { color: 'rgba(160, 103, 252, 0.3)' },
+    },
+    Polygon: {
+      stroke: { color: 'rgba(103, 155, 252, 1)', width: 4 },
+      fill: { color: 'rgba(103, 155, 252, 0.3)' },
+    },
+    Point: {
+      stroke: { color: '#fff' },
+      fill: { color: '#3578F9' },
+    },
+    Sel: {
+      stroke: { color: 'grey', width: 4 },
     },
   }
-  const style: StyleLike = function (f) {
-    return [
+
+  function getStyle(drawType: DrawType, isSel: boolean) {
+    const stroke = new Stroke({ ...STYLE_OPTIONS[drawType].stroke, lineDash: isSel ? [5, 5] : [] })
+    const fill = new Fill(STYLE_OPTIONS[drawType].fill)
+    const image = new CircleStyle({
+      stroke: stroke,
+      fill: new Fill({ color: '#fff' }),
+      radius: 6,
+      ...options,
+    })
+
+    const styles = [
       new Style({
-        stroke: new Stroke(styleOptions.stroke.normal),
-      }),
-      new Style({
-        image: new RegularShape({
-          radius: 4,
-          points: 4,
-          fill: new Fill({ color: '#f00' }),
-        }),
+        stroke,
+        fill,
+        image,
       }),
     ]
+
+    const geoTypes: DrawType[] = ['LineString', 'Box', 'Polygon']
+    if (geoTypes.includes(drawType)) {
+      const geoStyle = new Style({
+        image,
+        geometry: function (feature) {
+          // return the coordinates of the first ring of the polygon
+          const geo = feature.getGeometry()
+          if (geo instanceof Polygon || geo instanceof LineString) {
+            const coordinates = getCoords(geo)
+            return new MultiPoint(coordinates)
+          }
+        },
+      })
+
+      styles.push(geoStyle)
+    }
+
+    return styles
+  }
+
+  type DiagramStyle = Record<DrawType, { style: Style[]; selStyle: Style[] }>
+  const DIAGRAM_STYLE = (() => {
+    const drawTypes: DrawType[] = ['LineString', 'Box', 'Circle', 'Polygon']
+    return drawTypes.reduce((result, drawType) => {
+      result[drawType] = {
+        style: getStyle(drawType, false),
+        selStyle: getStyle(drawType, true),
+      }
+      return result
+    }, {} as DiagramStyle)
+  })()
+
+  const styleFn: StyleLike = function (f) {
+    const fDrawType = (f.get('drawType') as DrawType) ?? drawType.value
+
+    return DIAGRAM_STYLE[fDrawType]?.style
   }
 
   const vectorLayer = new VectorLayer({
     source: new VectorSource({ features: new Collection<any>() }),
-    style,
+    style: styleFn,
   })
   map.addLayer(vectorLayer)
 
@@ -62,20 +124,16 @@ export default function useOlDraw(map: Map, options?: any) {
       // condition: click,
       hitTolerance: 10,
 
-      style: (e) => {
-        if (interactionMode.value == 'modify')
-          return new Style({
-            stroke: new Stroke({ ...styleOptions.stroke.sel }),
-          })
-        return new Style({
-          stroke: new Stroke(styleOptions.stroke.normal),
-        })
+      style: (f) => {
+        const fDrawType = f.get('drawType') as DrawType
+
+        return DIAGRAM_STYLE[fDrawType].selStyle
       },
     }),
     draw: new Draw({
       source: vectorLayer.getSource()!,
       type: 'LineString',
-      style,
+      style: styleFn,
     }),
     modify: {} as Modify,
     transform: new Transform({
@@ -83,12 +141,11 @@ export default function useOlDraw(map: Map, options?: any) {
       translateFeature: true,
       hitTolerance: 10,
     }),
-    // split: new Split({ sources: [vectorLayer.getSource()!] }),
   }
   oInteraction.modify = new Modify({
     source: vectorLayer.getSource()!,
     features: oInteraction.select.getFeatures()!,
-    style,
+    style: styleFn,
   })
   // select, modify는 같이 활성화해도되고.
   // transform, modify는 동시에 활성화되면 안됨.
@@ -162,38 +219,6 @@ export default function useOlDraw(map: Map, options?: any) {
     }
   })
 
-  // test
-  // map.on('click', (e) => {
-  //   const div = document.createElement('div')
-  //   div.classList.add('measure')
-  //   div.textContent = '1'
-  //   div.style.width = '30px'
-  //   div.style.height = '30px'
-  //   div.style.backgroundColor = 'grey'
-  //   const ol = new Overlay({
-  //     position: e.coordinate,
-  //     positioning: 'center-center',
-  //     element: div,
-  //     stopEvent: false,
-  //   })
-
-  //   map.addOverlay(ol)
-  //   setTimeout(() => {
-  //     ol.setMap(null)
-  //     map.removeOverlay(ol)
-  //   }, 500)
-  // })
-  // const elt = document.createElement('div')
-  // const nOl = new Overlay({
-  //   position: [0, 0],
-  //   positioning: 'center-center',
-  //   element: elt,
-  //   stopEvent: false,
-  // })
-  // map.addOverlay(nOl)
-  // const elt1 = nOl.getElement()
-
-  // test
   type PointGeo = LineString | Polygon
   watch(drawType, () => {
     // 기존 draw 제거
@@ -212,13 +237,12 @@ export default function useOlDraw(map: Map, options?: any) {
       }
       oInteraction.draw = new Draw({
         source: vectorLayer.getSource()!,
-        // condition: click,
         condition: (e) => {
           if (e.activePointers![0].buttons == 1) return true
           else return false
         },
         type: type as Type,
-        style,
+        style: styleFn,
         geometryFunction: geoFn,
       })
 
@@ -377,22 +401,6 @@ export default function useOlDraw(map: Map, options?: any) {
     }
   })
 
-  function TDrawLog(draw: Draw) {
-    oInteraction.draw.on('propertychange', () => {
-      console.log('draw: propertychange')
-    })
-    oInteraction.draw.on('change:active', () => {
-      console.log('draw: change:active')
-    })
-    oInteraction.draw.on('change', () => {
-      console.log('draw: change')
-    })
-
-    oInteraction.draw.on('drawabort', () => {
-      console.log('draw: drawabort')
-    })
-  }
-
   watch(interactionMode, () => {
     console.log('interactionMode:', interactionMode.value)
     if (interactionMode.value == 'draw') {
@@ -429,6 +437,24 @@ export default function useOlDraw(map: Map, options?: any) {
       element: elt,
       stopEvent: false,
     })
+
+    // test
+    function TDrawLog(draw: Draw) {
+      oInteraction.draw.on('propertychange', () => {
+        console.log('draw: propertychange')
+      })
+      oInteraction.draw.on('change:active', () => {
+        console.log('draw: change:active')
+      })
+      oInteraction.draw.on('change', () => {
+        console.log('draw: change')
+      })
+
+      oInteraction.draw.on('drawabort', () => {
+        console.log('draw: drawabort')
+      })
+    }
+    // test
   }
 
   /**
@@ -459,3 +485,14 @@ export default function useOlDraw(map: Map, options?: any) {
 
   return { drawType }
 }
+
+export type DrawType = Extract<Type, 'LineString' | 'Polygon' | 'Circle'> | 'Box'
+type ConstructorOptions<T extends abstract new (...args: any) => any> = NonNullable<
+  ConstructorParameters<T>[0]
+>
+type StyleOptionsKeys = keyof ConstructorOptions<typeof Style>
+type StrokeKeys = keyof ConstructorOptions<typeof Stroke>
+type StyleOptions = Record<
+  DrawType | 'Point' | 'Sel',
+  { [key in StyleOptionsKeys]?: { [key in StrokeKeys]?: any } }
+>

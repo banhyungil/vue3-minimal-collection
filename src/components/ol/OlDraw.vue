@@ -39,6 +39,7 @@ function onToggleDrawing(type: DrawType) {
 <style lang="scss">
 .a {
   color: rgb(0 0 255);
+  background-color: rgb(146 192 164 / 53.4%);
 }
 
 .measure {
@@ -47,7 +48,7 @@ function onToggleDrawing(type: DrawType) {
   align-items: center;
   width: 'fit-content';
   height: '30px';
-  background-color: lightblue;
+  background-color: #f3a149;
   color: #fff;
   padding: 10px;
   transform: translate(60%, -60%);
